@@ -1,6 +1,7 @@
 package hr.dp333.config.batch;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
@@ -22,6 +23,7 @@ import hr.dp333.domain.dao.VoterGroupRepository;
 import hr.dp333.domain.dao.VoterRegistrationRepository;
 import hr.dp333.enums.DataColumn;
 import hr.dp333.enums.Party;
+import hr.dp333.util.Constants;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,8 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class JsonToDb {
 
-	private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
-	private static final String SOURCE_FILE_NAME = "data.json";
+	private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern(Constants.JSON_DATE_FORMAT_PATTERN);
 
 	private CountyRepository countyRepository;
 	private VoterRegistrationRepository voterRegistrationRepository;
@@ -42,20 +43,23 @@ public class JsonToDb {
 		JsonFactory factory = new JsonFactory();
 		ObjectMapper mapper = new ObjectMapper(factory);
 		try {
-			JsonNode dataNode = mapper.readTree(getClass().getClassLoader().getResourceAsStream(SOURCE_FILE_NAME)).get("data");
+			InputStream in = this.getClass().getClassLoader().getResourceAsStream(Constants.JSON_SOURCE_FILE_NAME);
+			if (null == in) {
+				log.error("Source file ({}) not found.", Constants.JSON_SOURCE_FILE_NAME);
+				return;
+			}
+			JsonNode dataNode = mapper.readTree(in).get("data");
 			final Set<VoterRegistration> voterRegistrationBatch = new HashSet<>();
 			final Set<VoterGroup> voterGroupBatch = new HashSet<>();
 			for (int i = 0; i < dataNode.size(); i++) {
 				JsonNode row = dataNode.get(i);
 				this.processRow(row, voterRegistrationBatch, voterGroupBatch);
 				if (i % 10 == 9) {
+					// save entities in batches
 					this.voterRegistrationRepository.save(voterRegistrationBatch);
 					voterRegistrationBatch.clear();
 					this.voterGroupRepository.save(voterGroupBatch);
 					voterGroupBatch.clear();
-				}
-				if (i % 3000 == 2999) {
-					break;
 				}
 			}
 			if (!voterRegistrationBatch.isEmpty()) {
