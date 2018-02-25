@@ -1,0 +1,32 @@
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+  <title>Voters</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+</head>
+
+<body>
+  <h2>Voters</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>County</th>
+        <th>Date</th>
+        <th>Grand total</th>
+        <th th:each="col: ${columns}"><p th:text="${col}"></p></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr th:each="vr: ${voterRegistrations.data}">
+        <td th:text="${vr.getCounty().getName()}"></td>
+        <td th:text="${vr.getDate()}"></td>
+        <td th:text="${vr.getGrandTotal()}"></td>
+        <td th:each="vg: ${vr.getVoterGroup()}" th:utext="${vg.getVoters()}"></td>
+      </tr>
+    </tbody>
+  </table>
+  <h4 th:text="${voterRegistrations.totalRows}"></h4>
+</body>
+
+</html>

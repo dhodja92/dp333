@@ -11,10 +11,16 @@ import javax.persistence.TypedQuery;
 
 import org.springframework.stereotype.Service;
 
+import com.querydsl.core.QueryResults;
+import com.querydsl.jpa.impl.JPAQuery;
+
+import hr.dp333.domain.QVoterGroup;
+import hr.dp333.domain.QVoterRegistration;
 import hr.dp333.domain.VoterRegistration;
 import hr.dp333.domain.dto.DtoTransferObject;
 import hr.dp333.domain.dto.VoterRegistrationDto;
 import hr.dp333.util.VoterRegistrationFilter;
+import hr.dp333.util.VoterRegistrationRequest;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -26,9 +32,32 @@ public class VoterRegistrationServiceImpl implements VoterRegistrationService {
 	private EntityManager entityManager;
 
 	@Override
-	public DtoTransferObject<VoterRegistrationDto> filterVoterRegistrations(VoterRegistrationFilter filter) {
+	public DtoTransferObject<VoterRegistration> filter(VoterRegistrationRequest request) {
 		long start = System.currentTimeMillis();
-		log.debug("Start: filterVoterRegistrations ({})", filter);
+		log.debug("Start: filter");
+		final JPAQuery<VoterRegistration> entitiesQuery = this.buildEntitiesQuery(request);
+		QueryResults<VoterRegistration> out = entitiesQuery.fetchResults();
+		final JPAQuery<Long> countQuery = this.buildCountQuery(request);
+		final Long count = countQuery.fetchCount();
+		log.debug("End: filter, time: {} ms.", System.currentTimeMillis() - start);
+		return new DtoTransferObject<>(out.getResults(), count);
+	}
+
+	private JPAQuery<VoterRegistration> buildEntitiesQuery(VoterRegistrationRequest request) {
+		final QVoterRegistration vr = QVoterRegistration.voterRegistration;
+		final QVoterGroup vg = QVoterGroup.voterGroup;
+		return new JPAQuery<VoterRegistration>(this.entityManager).from(vr).innerJoin(vr.voterGroup, vg).fetchJoin().where(request.getFilter())
+				.orderBy(vr.county.name.asc()).offset(request.getOffset()).limit(request.getLimit());
+	}
+
+	private JPAQuery<Long> buildCountQuery(VoterRegistrationRequest request) {
+		return new JPAQuery<Long>(this.entityManager).from(QVoterRegistration.voterRegistration).where(request.getCountFilter());
+	}
+
+	@Override
+	public DtoTransferObject<VoterRegistrationDto> filter(VoterRegistrationFilter filter) {
+		long start = System.currentTimeMillis();
+		log.debug("Start: filter ({})", filter);
 		List<VoterRegistrationDto> dtos = new ArrayList<>();
 
 		TypedQuery<VoterRegistration> query = this.buildEntitiesQuery(filter);
@@ -40,7 +69,7 @@ public class VoterRegistrationServiceImpl implements VoterRegistrationService {
 		TypedQuery<Long> countQuery = this.buildCountQuery(filter);
 		Long count = countQuery.getSingleResult();
 
-		log.debug("End: filterVoterRegistrations, time: {} ms.", System.currentTimeMillis() - start);
+		log.debug("End: filter, time: {} ms.", System.currentTimeMillis() - start);
 		return new DtoTransferObject<>(dtos, count);
 	}
 
@@ -54,7 +83,7 @@ public class VoterRegistrationServiceImpl implements VoterRegistrationService {
 			query.setParameter(entry.getKey(), entry.getValue());
 		}
 
-		Integer limit = null == filter.getLimit() ? 100 : filter.getLimit();
+		Integer limit = null == filter.getLimit() ? 50 : filter.getLimit();
 		Integer startPosition = null == filter.getPage() ? 0 : (filter.getPage() - 1) * limit;
 		query.setMaxResults(limit);
 		query.setFirstResult(startPosition);
